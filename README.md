@@ -1,8 +1,9 @@
 # Domain Search - 域名信息收集助手
 
 一个功能强大的Chrome扩展，用于快速收集和分析域名相关信息，包括IP地址、公司信息、ICP备案信息等。
-
 ![Uploading image.png…]()
+
+
 
 
 ## 🌟 主要功能
@@ -197,5 +198,6 @@ DomainSearch/
 ---
 
 **Domain Search** - 让域名信息收集变得简单高效！ 🔍
+
 
 
