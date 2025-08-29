@@ -1,0 +1,35 @@
+{
+    "manifest_version": 3,
+    "name": "Domain Search",
+    "description": "域名信息收集助手",
+    "version": "0.5",
+    "icons": {
+        "16": "img/logo.png",
+        "48": "img/logo.png",
+        "128": "img/logo.png"
+    },
+    "action": {
+        "default_title": "Domain Search",
+        "default_popup": "popup.html",
+        "default_icon": {
+            "16": "img/logo.png",
+            "48": "img/logo.png"
+        }
+    },
+    "permissions": [
+        "activeTab",
+        "storage",
+        "scripting",
+        "tabs"
+    ],
+    "host_permissions": [
+        "https://dns.google/*",
+        "https://aiqicha.baidu.com/*",
+        "https://www.aizhan.com/*"        
+    ],
+    "background": {
+        "service_worker": "background.js"
+    }
+}
+
+

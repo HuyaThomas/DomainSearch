@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Domain Search</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="topbar">
+            <h1 id="title">域名地址</h1>
+            <input id="top-query" class="top-input" type="text" placeholder="输入公司名/域名" style="display:none">
+            <button id="btn-search" class="icon-btn" title="搜索" aria-label="搜索">🔍</button>
+            <button id="btn-theme" class="icon-btn" title="切换主题" aria-label="切换主题">🎨</button>
+        </div>
+        
+        <div class="pair">
+            <div class="kv">
+                <div class="label">域名地址</div>
+                <div id="kv-host" class="value muted">-</div>
+            </div>
+            <div class="kv">
+                <div class="label">网站IP</div>
+                <div id="kv-ip" class="value muted">-</div>
+            </div>
+        </div>
+        
+        <input id="query" type="text" placeholder="输入公司名/域名" style="display:none">
+
+        <div class="group">
+            <h2>资产归属</h2>
+            <div class="cards">
+                <div class="card span2">
+                    <div class="label">所属公司</div>
+                    <div id="card-company" class="value muted">-</div>
+                </div>
+                <div class="card">
+                    <div class="label">注册资本</div>
+                    <div id="card-capital" class="value muted">-</div>
+                </div>
+                <div class="card">
+                    <div class="label">法定代表人</div>
+                    <div id="card-legal" class="value muted">-</div>
+                </div>
+                <div class="card">
+                    <div class="label">电话</div>
+                    <div id="card-phone" class="value muted">-</div>
+                </div>
+                <div class="card">
+                    <div class="label">邮箱</div>
+                    <div id="card-email" class="value muted">-</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="group">
+            <h2>备案信息</h2>
+            <div class="cards">
+                <div class="card icp-number">
+                    <div class="label">备案号</div>
+                    <div id="card-icp-number" class="value muted">-</div>
+                </div>
+                <div class="card">
+                    <div class="label">备案状态</div>
+                    <div id="card-icp-status" class="value muted">-</div>
+                </div>
+                <div class="card span2" style="display:none">
+                    <div class="label">主办单位</div>
+                    <div id="card-icp-company" class="value muted">-</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="debug-section">
+            <div class="debug-toggle" id="debug-toggle" style="display:none">
+                <span class="debug-toggle-text">📊 查看调试信息</span>
+                <span class="debug-toggle-icon">▼</span>
+            </div>
+            <div id="debug" class="debug" style="display:none"></div>
+        </div>
+    </div>
+    
+    <script src="popup.js"></script>
+</body>
+</html>
+
+
