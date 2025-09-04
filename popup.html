@@ -9,12 +9,20 @@
 <body>
     <div class="container">
         <div class="topbar">
-            <h1 id="title">域名地址</h1>
             <input id="top-query" class="top-input" type="text" placeholder="输入公司名/域名" style="display:none">
             <button id="btn-search" class="icon-btn" title="搜索" aria-label="搜索">🔍</button>
             <button id="btn-theme" class="icon-btn" title="切换主题" aria-label="切换主题">🎨</button>
+            <button id="btn-settings" class="icon-btn" title="设置" aria-label="设置">⚙️</button>
         </div>
         
+        <!-- 标签页导航 -->
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="domain-info">域名信息</button>
+            <button class="tab-btn" data-tab="security-check">VirusTotal</button>
+        </div>
+
+        <!-- 域名信息标签页 -->
+        <div id="tab-domain-info" class="tab-content active">
         <div class="pair">
             <div class="kv">
                 <div class="label">域名地址</div>
@@ -78,6 +86,79 @@
                 <span class="debug-toggle-icon">▼</span>
             </div>
             <div id="debug" class="debug" style="display:none"></div>
+        </div>
+        </div>
+
+        <!-- VirusTotal标签页 -->
+        <div id="tab-security-check" class="tab-content">
+            <div class="group">
+                <div id="vt-status-text" style="font-size: 12px; color: var(--text-secondary); margin-bottom: 16px;">点击重新检测按钮获取最新数据</div>
+                <div class="security-overview">
+                    <div class="security-score">
+                        <div class="score-circle">
+                            <div id="vt-score" class="score-number">-</div>
+                            <div class="score-label">安全评分</div>
+                        </div>
+                        <div class="score-details">
+                            <div class="score-item">
+                                <span class="label">检测引擎</span>
+                                <span id="vt-total-engines" class="value">-</span>
+                            </div>
+                            <div class="score-item">
+                                <span class="label">恶意检测</span>
+                                <span id="vt-malicious-count" class="value malicious">-</span>
+                            </div>
+                            <div class="score-item">
+                                <span class="label">检测状态</span>
+                                <span id="vt-status" class="value">-</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+                <div class="group">
+                    <h3>安全厂商检测结果</h3>
+                    <div id="vt-vendors" class="vendors-list">
+                        <div class="loading">正在获取检测结果...</div>
+                    </div>
+                </div>
+
+                <!-- VirusTotal 调试信息 -->
+                <div class="debug-section">
+                    <div class="debug-toggle" id="vt-debug-toggle" style="display:none">
+                        <span class="debug-toggle-text">📊 查看VirusTotal调试信息</span>
+                        <span class="debug-toggle-icon">▼</span>
+                    </div>
+                    <div id="vt-debug" class="debug" style="display:none"></div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- 设置弹窗 -->
+    <div id="settings-modal" class="modal" style="display:none">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>设置</h3>
+                <button id="btn-close-settings" class="icon-btn">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="group">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <h3>VirusTotal API Key</h3>
+                        <span id="vt-api-key-status" class="api-key-status">未设置API Key</span>
+                    </div>
+                    <div class="api-key-settings">
+                        <input type="password" id="vt-api-key" placeholder="输入VirusTotal API Key" class="full-width-input">
+                        <div style="display: flex; justify-content: space-between; margin-top: 8px;">
+                            <button id="btn-save-vt-key" class="icon-btn">保存 Key</button>
+                            <button id="btn-clear-vt-key" class="icon-btn secondary">清除 Key</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
     
