@@ -9,6 +9,9 @@
     --card-bg: #ffffff;
     --hover-bg: #eff6ff;
     --hover-border: #93c5fd;
+    --success-color: #28a745;
+    --error-color: #dc3545;
+    --warning-color: #ffc107;
 }
 
 /* 默认主题 */
@@ -85,12 +88,13 @@ body.theme-vibrant {
     --hover-border: #f97316;
 }
 .container{width:600px;box-sizing:border-box;padding:16px}
-.topbar{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.topbar{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:12px;border-bottom:1px solid var(--border-color)}
 .topbar h1,.group h2{margin:8px 0;font-size:16px;letter-spacing:.5px;color:var(--accent-color);font-weight:600}
 .topbar h1{flex:1}
-.topbar .top-input{display:none;box-sizing:border-box;border:1px solid var(--border-color);background:var(--card-bg);color:var(--text-primary);border-radius:8px;padding:6px 10px;width:50%;margin-left:auto}
-.icon-btn{appearance:none;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);border-radius:8px;padding:6px 10px;cursor:pointer;transition:all 0.2s ease}
-.icon-btn:hover{border-color:var(--hover-border);background:var(--hover-bg)}
+.topbar .top-input{display:none;box-sizing:border-box;border:1px solid var(--border-color);background:var(--card-bg);color:var(--text-primary);border-radius:20px;padding:8px 16px;width:200px;font-size:14px;transition:all 0.3s ease;box-shadow:0 2px 4px rgba(0,0,0,0.1)}
+.topbar .top-input:focus{outline:none;border-color:var(--accent-color);box-shadow:0 0 0 3px rgba(37,99,235,0.1);width:250px}
+.icon-btn{appearance:none;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);border-radius:12px;padding:8px;cursor:pointer;transition:all 0.3s ease;width:36px;height:36px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 4px rgba(0,0,0,0.1)}
+.icon-btn:hover{border-color:var(--hover-border);background:var(--hover-bg);transform:translateY(-1px);box-shadow:0 4px 8px rgba(0,0,0,0.15)}
 .pair{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:4px 0 8px 0}
 .kv{border:1px solid var(--border-color);background:var(--card-bg);border-radius:10px;padding:10px}
 .kv .label{color:var(--text-secondary);font-size:12px}
@@ -118,4 +122,320 @@ input#query{width:100%;box-sizing:border-box;border:1px solid var(--border-color
 .debug-toggle.expanded .debug-toggle-icon{transform:rotate(180deg)}
 .debug-toggle-icon{transition:transform 0.2s ease}
 .debug{border:1px solid var(--border-color);border-top:none;border-radius:0 0 8px 8px;padding:12px;font-family:monospace;font-size:12px;color:var(--text-primary);white-space:pre-wrap;word-break:break-all;max-height:300px;overflow-y:auto;background:var(--bg-secondary)}
+
+/* 标签页样式 */
+.tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 12px;
+}
+
+.tab-btn {
+    flex: 1;
+    padding: 8px 12px;
+    border: none;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.tab-btn.active {
+    color: var(--accent-color);
+    border-bottom-color: var(--accent-color);
+}
+
+.tab-btn:hover {
+    color: var(--text-primary);
+    background: var(--hover-bg);
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+/* VirusTotal 安全检测样式 */
+.security-overview {
+    margin-bottom: 16px;
+}
+
+.security-score {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 20px;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    background: var(--card-bg);
+    margin-bottom: 16px;
+}
+
+.score-circle {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent-color), #60a5fa);
+    color: white;
+    font-weight: bold;
+}
+
+.score-number {
+    font-size: 20px;
+    line-height: 1;
+    color: white !important;
+}
+
+.score-label {
+    font-size: 10px;
+    margin-top: 4px;
+    opacity: 0.9;
+}
+
+.score-details {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.score-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+}
+
+.score-item .label {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.score-item .value {
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.score-item .value.malicious {
+    color: var(--text-primary);
+}
+
+/* 检测详情样式 */
+.vt-details {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.detail-item {
+    padding: 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--card-bg);
+}
+
+.detail-item .label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+}
+
+.detail-item .value {
+    font-size: 14px;
+    color: var(--text-primary);
+}
+
+/* 厂商检测结果样式 */
+.vendors-list {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--card-bg);
+}
+
+.vendor-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.vendor-item:last-child {
+    border-bottom: none;
+}
+
+.vendor-name {
+    font-size: 12px;
+    color: var(--text-primary);
+}
+
+.vendor-result {
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.vendor-result.clean {
+    color: var(--success-color);
+}
+
+.vendor-result.malicious {
+    color: var(--error-color);
+}
+
+.vendor-result.unrated {
+    color: var(--text-secondary);
+}
+
+.vendor-result.suspicious {
+    color: var(--warning-color);
+}
+
+.loading, .no-data, .error {
+    padding: 16px;
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+.error {
+    color: var(--error-color);
+}
+
+/* 设置弹窗样式 */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+}
+
+.modal-content {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    width: 400px;
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+    backdrop-filter: blur(10px);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h3 {
+    margin: 0;
+    font-size: 16px;
+    color: var(--text-primary);
+}
+
+.modal-body {
+    padding: 16px;
+}
+
+.full-width-input {
+    width: 100%;
+    box-sizing: border-box;
+    border: 2px solid var(--border-color);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border-radius: 12px;
+    padding: 12px 16px;
+    font-size: 14px;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.full-width-input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
+    transform: translateY(-1px);
+}
+
+.api-key-settings {
+    margin-top: 8px;
+}
+
+.api-key-status {
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-weight: 500;
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+    transition: all 0.3s ease;
+}
+
+.api-key-status.set {
+    background: var(--success-color);
+    color: white;
+    border-color: var(--success-color);
+}
+
+.api-key-status.error {
+    background: var(--error-color);
+    color: white;
+    border-color: var(--error-color);
+}
+
+.api-key-settings .icon-btn {
+    flex: 1;
+    margin: 0 4px;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.api-key-settings .icon-btn:first-child {
+    background: linear-gradient(135deg, var(--accent-color), #60a5fa);
+    color: white;
+    border: none;
+}
+
+.api-key-settings .icon-btn:first-child:hover {
+    background: linear-gradient(135deg, #1d4ed8, #3b82f6);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(37,99,235,0.3);
+}
+
+.secondary {
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+}
+
+.secondary:hover {
+    background: var(--error-color);
+    color: white;
+    border-color: var(--error-color);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(220,53,69,0.3);
+}
 
