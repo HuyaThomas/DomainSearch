@@ -27,11 +27,12 @@
         "https://aiqicha.baidu.com/*",
         "https://www.aizhan.com/*",
         "https://www.virustotal.com/*"
-    ]，
+    ],
     "background": {
         "service_worker": "background.js"
     }
 }
+
 
 
 
