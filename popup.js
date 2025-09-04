@@ -16,6 +16,26 @@ document.addEventListener('DOMContentLoaded', function() {
     var debugBox = document.getElementById('debug');
     var debugToggle = document.getElementById('debug-toggle');
     var themeBtn = document.getElementById('btn-theme');
+    var settingsBtn = document.getElementById('btn-settings');
+    
+    // VT 页面的元素
+    var vtScoreEl = document.getElementById('vt-score');
+    var vtTotalEnginesEl = document.getElementById('vt-total-engines');
+    var vtMaliciousCountEl = document.getElementById('vt-malicious-count');
+    var vtStatusEl = document.getElementById('vt-status');
+    var vtVendorsEl = document.getElementById('vt-vendors');
+    var vtStatusText = document.getElementById('vt-status-text');
+    var vtDebugBox = document.getElementById('vt-debug');
+    var vtDebugToggle = document.getElementById('vt-debug-toggle');
+    
+    
+    // 设置弹窗元素
+    var settingsModal = document.getElementById('settings-modal');
+    var closeSettingsBtn = document.getElementById('btn-close-settings');
+    var vtApiKeyInput = document.getElementById('vt-api-key');
+    var saveVtKeyBtn = document.getElementById('btn-save-vt-key');
+    var clearVtKeyBtn = document.getElementById('btn-clear-vt-key');
+    var vtApiKeyStatus = document.getElementById('vt-api-key-status');
 
     // 工具函数
     function setText(el, text) { 
@@ -100,6 +120,12 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    async function queryVirusTotal(domain) {
+        const res = await chrome.storage.local.get(['vtApiKey']);
+        const apiKey = (res && res.vtApiKey) || '';
+        return await chrome.runtime.sendMessage({ type: 'queryVirusTotal', domain: domain, apiKey });
+    }
+
     function appendList(parent, title, href, desc) {
         var item = document.createElement('div');
         item.className = 'list-item';
@@ -154,9 +180,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     // 同时设置资产归属的所属公司
                     setText(companyEl, decodeUnicode(r.company)); 
                     
-                                            // 用主办单位名称去爱企查搜索详细信息
-                        queryICP(r.company).then(function(aiqichaResult) {
-                            if (aiqichaResult.source === 'aiqicha') {
+                    // 用主办单位名称去爱企查搜索详细信息
+                    queryICP(r.company).then(function(aiqichaResult) {
+                        if (aiqichaResult.source === 'aiqicha') {
                             if (aiqichaResult.legal) { 
                                 setText(legalEl, decodeUnicode(aiqichaResult.legal)); 
                             }
@@ -187,6 +213,21 @@ document.addEventListener('DOMContentLoaded', function() {
                                     debugBox.textContent = JSON.stringify({ aizhan: r.debug, [aiqichaResult.source]: aiqichaResult.debug }, null, 2);
                                 }
                             }
+                        }
+                    }).catch(function(error) {
+                        // 爱企查查询失败也要显示调试信息
+                        debugToggle.style.display = 'flex';
+                        let currentDebug = debugBox.textContent;
+                        if (currentDebug && currentDebug.trim()) {
+                            try {
+                                let currentObj = JSON.parse(currentDebug);
+                                let mergedDebug = { ...currentObj, aiqichaError: String(error) };
+                                debugBox.textContent = JSON.stringify(mergedDebug, null, 2);
+                            } catch(e) {
+                                debugBox.textContent = JSON.stringify({ aizhan: r.debug, aiqichaError: String(error) }, null, 2);
+                            }
+                        } else {
+                            debugBox.textContent = JSON.stringify({ aizhan: r.debug, aiqichaError: String(error) }, null, 2);
                         }
                     });
                 }
@@ -231,13 +272,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 debugBox.textContent = JSON.stringify({ aizhanError: String(error) }, null, 2);
             }
         });
+
+        // 同时获取VirusTotal安全检测数据
+        loadVirusTotalData(q);
     }
 
     // 初始化：获取当前标签页的域名
     getActiveHost(function(host) {
         queryInput.value = host || '';
         if (queryInput && queryInput.style.display !== 'none') { 
-            queryInput.select(); 
+        queryInput.select();
         }
         if (host) { 
             refresh(); 
@@ -342,6 +386,203 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 debugToggle.classList.add('expanded');
                 debugBox.style.display = 'block';
+            }
+        });
+    }
+
+    // 标签页切换
+    const tabButtons = document.querySelectorAll('.tab-btn');
+    const tabContents = document.querySelectorAll('.tab-content');
+    tabButtons.forEach(function(button){
+        button.addEventListener('click', function(){
+            const target = this.getAttribute('data-tab');
+            tabButtons.forEach(b=>b.classList.remove('active'));
+            tabContents.forEach(c=>c.classList.remove('active'));
+            this.classList.add('active');
+            document.getElementById('tab-' + target).classList.add('active');
+            
+            
+            if (target === 'security-check') {
+                getActiveHost(function(host){ if (host) loadVirusTotalData(host); });
+            }
+        });
+    });
+
+    // 加载VT数据
+    function loadVirusTotalData(domain){
+        if (vtVendorsEl) vtVendorsEl.innerHTML = '<div class="loading">正在获取安全检测结果...</div>';
+        if (vtStatusText) vtStatusText.textContent = '正在获取安全检测数据...';
+        
+        
+        queryVirusTotal(domain).then(function(result){
+            
+            if (result && result.debug) {
+                if (vtDebugToggle) vtDebugToggle.style.display = 'flex';
+                if (vtDebugBox) vtDebugBox.textContent = JSON.stringify({ virustotal: result.debug }, null, 2);
+            }
+            if (result && result.source === 'virustotal') {
+                var mc = Number(result.maliciousCount||0);
+                var te = Number(result.totalEngines||0);
+                var score = te ? Math.round((1 - mc/te) * 100) : 100;
+                if (vtScoreEl) {
+                    vtScoreEl.textContent = score + '%';
+                    // 根据评分设置圆圈背景颜色
+                    const scoreCircle = vtScoreEl.closest('.score-circle');
+                    if (scoreCircle) {
+                        if (score < 90) {
+                            scoreCircle.style.background = 'linear-gradient(135deg, var(--error-color), #dc3545)'; // 红色
+                        } else if (score < 95) {
+                            scoreCircle.style.background = 'linear-gradient(135deg, var(--warning-color), #ffc107)'; // 黄色
+                        } else {
+                            scoreCircle.style.background = 'linear-gradient(135deg, var(--success-color), #28a745)'; // 绿色
+                        }
+                    }
+                }
+                if (vtTotalEnginesEl) vtTotalEnginesEl.textContent = te || '-';
+                if (vtMaliciousCountEl) {
+                    vtMaliciousCountEl.textContent = mc || '-';
+                    // 恶意检测数量颜色
+                    if (mc > 0) {
+                        vtMaliciousCountEl.style.color = 'var(--error-color)'; // 红色
+                    } else {
+                        vtMaliciousCountEl.style.color = 'var(--text-primary)'; // 默认颜色
+                    }
+                }
+                if (vtStatusEl) {
+                    vtStatusEl.textContent = result.status || '-';
+                    // 检测状态颜色
+                    if (result.status === 'Malicious') {
+                        vtStatusEl.style.color = 'var(--error-color)'; // 红色
+                    } else if (result.status === 'Clean') {
+                        vtStatusEl.style.color = 'var(--success-color)'; // 绿色
+                    } else {
+                        vtStatusEl.style.color = 'var(--text-primary)'; // 默认颜色
+                    }
+                }
+                if (vtVendorsEl) {
+                    if (result.vendors && result.vendors.length) {
+                        vtVendorsEl.innerHTML = result.vendors.map(function(v){
+                            var cls, icon, displayText;
+                            
+                            // 调试：输出实际的结果值
+                            console.log('Vendor result:', v.name, '->', v.result);
+                            
+                            // 转换为小写进行比较，确保匹配
+                            var resultLower = (v.result || '').toLowerCase();
+                            
+                            if (resultLower === 'clean') {
+                                cls = 'clean';
+                                icon = '✅';
+                                displayText = 'Clean';
+                            } else if (resultLower === 'malicious' || resultLower === 'malware' || resultLower === 'phishing') {
+                                cls = 'malicious';
+                                icon = '❗';
+                                displayText = v.result; // 保持原始大小写
+                            } else if (resultLower === 'unknown' || resultLower === 'unrated') {
+                                cls = 'unrated';
+                                icon = '❓';
+                                displayText = 'Unrated';
+                            } else {
+                                // 其他状态（如 Suspicious 等）
+                                cls = 'suspicious';
+                                icon = '⚠️';
+                                displayText = v.result;
+                            }
+                            
+                            return '<div class="vendor-item"><span class="vendor-name">'+v.name+'</span><span class="vendor-result '+cls+'">'+icon+' '+displayText+'</span></div>';
+                        }).join('');
+                    } else {
+                        vtVendorsEl.innerHTML = '<div class="no-data">暂无厂商检测结果</div>';
+                    }
+                }
+                if (vtStatusText) vtStatusText.textContent = '安全检测完成';
+            } else {
+                if (vtVendorsEl) vtVendorsEl.innerHTML = '<div class="error">未获取到VirusTotal数据</div>';
+                if (vtStatusText) vtStatusText.textContent = '未获取到数据，请查看调试信息';
+            }
+        }).catch(function(err){
+            
+            if (vtVendorsEl) vtVendorsEl.innerHTML = '<div class="error">获取安全检测数据失败: '+err+'</div>';
+            if (vtStatusText) vtStatusText.textContent = '获取数据失败: '+err;
+        });
+    }
+
+
+    // VT 调试信息收起展开
+    if (vtDebugToggle) {
+        vtDebugToggle.addEventListener('click', function(){
+            const open = vtDebugToggle.classList.contains('expanded');
+            if (open) { vtDebugToggle.classList.remove('expanded'); vtDebugBox.style.display='none'; }
+            else { vtDebugToggle.classList.add('expanded'); vtDebugBox.style.display='block'; }
+        });
+    }
+
+
+    // 设置弹窗相关功能
+    if (settingsBtn) {
+        settingsBtn.addEventListener('click', function(){
+            settingsModal.style.display = 'block';
+            loadApiKey();
+        });
+    }
+
+    if (closeSettingsBtn) {
+        closeSettingsBtn.addEventListener('click', function(){
+            settingsModal.style.display = 'none';
+        });
+    }
+
+    // 点击弹窗外部关闭
+    if (settingsModal) {
+        settingsModal.addEventListener('click', function(e){
+            if (e.target === settingsModal) {
+                settingsModal.style.display = 'none';
+            }
+        });
+    }
+
+    // 保存API Key
+    if (saveVtKeyBtn) {
+        saveVtKeyBtn.addEventListener('click', function(){
+            const apiKey = vtApiKeyInput.value.trim();
+            if (apiKey) {
+                chrome.storage.local.set({vtApiKey: apiKey}, function(){
+                    vtApiKeyStatus.textContent = 'API Key 保存成功！';
+                    vtApiKeyStatus.className = 'api-key-status set';
+                    setTimeout(function(){
+                        vtApiKeyStatus.textContent = 'API Key 已设置';
+                        vtApiKeyStatus.className = 'api-key-status set';
+                    }, 2000);
+                });
+            } else {
+                vtApiKeyStatus.textContent = '请输入有效的API Key';
+                vtApiKeyStatus.className = 'api-key-status error';
+            }
+        });
+    }
+
+    // 清除API Key
+    if (clearVtKeyBtn) {
+        clearVtKeyBtn.addEventListener('click', function(){
+            chrome.storage.local.remove(['vtApiKey'], function(){
+                vtApiKeyInput.value = '';
+                vtApiKeyStatus.textContent = 'API Key 已清除';
+                vtApiKeyStatus.className = 'api-key-status';
+            });
+        });
+    }
+
+    // 加载API Key
+    function loadApiKey() {
+        chrome.storage.local.get(['vtApiKey'], function(result){
+            if (result.vtApiKey) {
+                vtApiKeyInput.value = result.vtApiKey;
+                vtApiKeyStatus.textContent = 'API Key 已设置';
+                vtApiKeyStatus.className = 'api-key-status set';
+            } else {
+                vtApiKeyInput.value = '';
+                vtApiKeyStatus.textContent = '未设置API Key';
+                vtApiKeyStatus.className = 'api-key-status';
             }
         });
     }
