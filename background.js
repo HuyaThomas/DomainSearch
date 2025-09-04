@@ -34,6 +34,129 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             return;
         }
 
+        if (msg && msg.type === 'queryVirusTotal') {
+            const domain = msg.domain || '';
+            const apiKey = msg.apiKey || '';
+            
+            try {
+                let result = { source: 'virustotal', domain: domain };
+                let debug = {
+                    domain: domain,
+                    apiKeyProvided: !!apiKey,
+                    apiUsed: false,
+                    apiStatus: 0,
+                    apiResponseLength: 0,
+                    apiResponseSample: '',
+                    htmlLength: 0,
+                    htmlSample: '',
+                    error: null
+                };
+                
+                // 优先使用API
+                if (apiKey) {
+                    const apiUrl = `https://www.virustotal.com/api/v3/domains/${encodeURIComponent(domain)}`;
+                    const apiRes = await safeFetch(apiUrl, {
+                        headers: {
+                            'x-apikey': apiKey,
+                            'Accept': 'application/json'
+                        }
+                    });
+                    
+                    debug.apiUsed = true;
+                    debug.apiStatus = apiRes.status;
+                    debug.apiResponseLength = apiRes.text ? apiRes.text.length : 0;
+                    debug.apiResponseSample = apiRes.text ? apiRes.text.substring(0, 500) : '';
+                    
+                    if (apiRes.ok && apiRes.text) {
+                        try {
+                            const apiData = JSON.parse(apiRes.text);
+                            const data = apiData.data || {};
+                            const attributes = data.attributes || {};
+                            const lastAnalysisStats = attributes.last_analysis_stats || {};
+                            const whois = attributes.whois || '';
+                            
+                            result.maliciousCount = lastAnalysisStats.malicious || 0;
+                            result.totalEngines = (lastAnalysisStats.malicious || 0) + (lastAnalysisStats.undetected || 0) + (lastAnalysisStats.harmless || 0);
+                            result.status = result.maliciousCount > 0 ? 'Malicious' : 'Clean';
+                            
+                            // 提取注册商信息
+                            const registrarMatch = whois.match(/Registrar:\s*([^\n\r]+)/i);
+                            if (registrarMatch) {
+                                result.registrar = registrarMatch[1].trim();
+                            }
+                            
+                            // 提取创建时间
+                            const creationMatch = whois.match(/Creation Date:\s*([^\n\r]+)/i);
+                            if (creationMatch) {
+                                result.creationDate = creationMatch[1].trim();
+                            }
+                            
+                            // 最后分析时间
+                            if (attributes.last_analysis_date) {
+                                result.lastAnalysis = new Date(attributes.last_analysis_date * 1000).toLocaleString();
+                            }
+                            
+                            // 提取厂商检测结果
+                            const lastAnalysisResults = attributes.last_analysis_results || {};
+                            result.vendors = Object.entries(lastAnalysisResults).map(([name, data]) => ({
+                                name: name,
+                                result: data.result || 'Unknown'
+                            })); // 显示所有厂商
+                            
+                            result.debug = debug;
+                            sendResponse(result);
+                            return;
+                        } catch (parseError) {
+                            debug.error = 'API JSON parse error: ' + parseError.message;
+                        }
+                    }
+                }
+                
+                // API失败或未提供API Key，回退到HTML解析
+                const vtUrl = `https://www.virustotal.com/gui/domain/${encodeURIComponent(domain)}`;
+                const rVt = await safeFetch(vtUrl, {
+                    credentials: 'include',
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+                        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+                        'Accept-Encoding': 'gzip, deflate, br',
+                        'Referer': 'https://www.virustotal.com/'
+                    }
+                });
+                
+                debug.htmlLength = rVt.text ? rVt.text.length : 0;
+                debug.htmlSample = rVt.text ? rVt.text.substring(0, 500) : '';
+                
+                if (rVt.ok && rVt.text) {
+                    const html = rVt.text;
+                    
+                    // 尝试从HTML中提取数据
+                    const maliciousMatch = html.match(/"malicious":\s*(\d+)/);
+                    const totalMatch = html.match(/"total":\s*(\d+)/);
+                    
+                    if (maliciousMatch && totalMatch) {
+                        result.maliciousCount = parseInt(maliciousMatch[1]);
+                        result.totalEngines = parseInt(totalMatch[1]);
+                        result.status = result.maliciousCount > 0 ? 'Malicious' : 'Clean';
+                    }
+                }
+                
+                result.debug = debug;
+                sendResponse(result);
+                return;
+                
+            } catch (error) {
+                sendResponse({ 
+                    source: 'virustotal', 
+                    domain: domain, 
+                    error: String(error),
+                    debug: { error: String(error) }
+                });
+                return;
+            }
+        }
+
         if (msg && msg.type === 'queryAizhan') {
             const q = msg.query || '';
             
