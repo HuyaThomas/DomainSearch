@@ -87,7 +87,7 @@ body.theme-vibrant {
     --hover-bg: #fed7aa;
     --hover-border: #f97316;
 }
-.container{width:600px;box-sizing:border-box;padding:16px}
+.container{width:600px;box-sizing:border-box;padding:16px;overflow:hidden}
 .topbar{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:12px;border-bottom:1px solid var(--border-color)}
 .topbar h1,.group h2{margin:8px 0;font-size:16px;letter-spacing:.5px;color:var(--accent-color);font-weight:600}
 .topbar h1{flex:1}
@@ -160,19 +160,31 @@ input#query{width:100%;box-sizing:border-box;border:1px solid var(--border-color
 }
 
 /* VirusTotal 安全检测样式 */
+
+.section-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 16px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 .security-overview {
     margin-bottom: 16px;
+    padding: 16px;
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .security-score {
     display: flex;
     align-items: center;
     gap: 20px;
-    padding: 20px;
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    background: var(--card-bg);
-    margin-bottom: 16px;
+    width: 100%;
 }
 
 .score-circle {
@@ -186,18 +198,22 @@ input#query{width:100%;box-sizing:border-box;border:1px solid var(--border-color
     background: linear-gradient(135deg, var(--accent-color), #60a5fa);
     color: white;
     font-weight: bold;
+    box-shadow: 0 4px 16px rgba(37, 99, 235, 0.3);
+    flex-shrink: 0;
 }
 
 .score-number {
     font-size: 20px;
     line-height: 1;
     color: white !important;
+    font-weight: 700;
 }
 
 .score-label {
-    font-size: 10px;
+    font-size: 11px;
     margin-top: 4px;
     opacity: 0.9;
+    font-weight: 500;
 }
 
 .score-details {
@@ -209,23 +225,48 @@ input#query{width:100%;box-sizing:border-box;border:1px solid var(--border-color
 
 .score-item {
     display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: var(--bg-primary);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    transition: all 0.2s ease;
+}
+
+.score-item:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.score-item-icon {
+    font-size: 14px;
+    width: 20px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.score-item-content {
+    display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 4px 0;
+    flex: 1;
 }
 
 .score-item .label {
     font-size: 12px;
     color: var(--text-secondary);
+    font-weight: 500;
 }
 
 .score-item .value {
     font-size: 14px;
-    font-weight: 500;
+    font-weight: 600;
+    color: var(--text-primary);
 }
 
 .score-item .value.malicious {
-    color: var(--text-primary);
+    color: var(--error-color);
 }
 
 /* 检测详情样式 */
@@ -255,34 +296,68 @@ input#query{width:100%;box-sizing:border-box;border:1px solid var(--border-color
 }
 
 /* 厂商检测结果样式 */
+.vendors-container {
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+}
+
 .vendors-list {
     max-height: 200px;
     overflow-y: auto;
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    background: var(--card-bg);
+    overflow-x: hidden;
+    background: var(--bg-primary);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
 }
 
 .vendor-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 8px;
     padding: 8px 12px;
     border-bottom: 1px solid var(--border-color);
+    border-right: 1px solid var(--border-color);
+    transition: all 0.2s ease;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.vendor-item:nth-child(even) {
+    border-right: none;
 }
 
 .vendor-item:last-child {
     border-bottom: none;
 }
 
+.vendor-item:hover {
+    background: var(--bg-secondary);
+    transform: translateX(2px);
+}
+
 .vendor-name {
     font-size: 12px;
     color: var(--text-primary);
+    font-weight: 500;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .vendor-result {
     font-size: 12px;
     font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
 }
 
 .vendor-result.clean {
