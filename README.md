@@ -2,8 +2,6 @@
 
 一个功能强大的Chrome扩展，用于快速收集和分析域名相关信息，包括IP地址、公司信息、ICP备案信息和VirusTotal安全检测等。
 
-<img width="1048" height="626" alt="image" src="https://github.com/user-attachments/assets/4c596d80-7c17-4dda-a882-307171699d3e" />
-
 ## 🌟 主要功能
 
 ### 1. 域名信息查询
@@ -30,57 +28,9 @@
 - **API集成**：支持VirusTotal API Key配置
 - **智能回退**：API失败时自动使用HTML解析
 
-### 5. 用户界面特性
-- **双标签页设计**：域名信息和VirusTotal安全检测分离显示
-- **响应式设计**：适配不同屏幕尺寸
-- **多主题切换**：支持6种炫酷主题风格
-  - 默认主题
-  - 深色主题
-  - 蓝色科技主题
-  - 绿色自然主题
-  - 紫色梦幻主题
-  - 橙色活力主题
-- **智能搜索**：点击放大镜图标展开搜索框
-- **设置面板**：右上角设置按钮，支持API Key配置
-- **调试模式**：可折叠的调试信息面板
-
-## 🛠️ 技术架构
-
-### 文件结构
-```
-DomainSearch/
-├── manifest.json          # 扩展配置文件
-├── popup.html            # 主界面HTML
-├── popup.js              # 前端逻辑
-├── background.js         # 后台服务脚本
-├── styles.css            # 样式文件
-├── img/                  # 图标资源
-│   └── logo.png
-└── README.md            # 说明文档
-```
-
-### 核心技术
-- **Chrome Extension Manifest V3**：使用最新的扩展开发标准
-- **Service Worker**：后台脚本处理网络请求
-- **CSS Grid & Flexbox**：现代化布局技术
-- **正则表达式**：智能数据提取
-- **异步编程**：Promise和async/await
-
-### 数据源
-- **Google DNS API**：域名IP解析
-- **爱站网 (aizhan.com)**：ICP备案信息
-- **爱企查 (aiqicha.baidu.com)**：公司详细信息
-- **VirusTotal API**：安全检测数据（需要API Key）
-- **VirusTotal HTML**：安全检测数据（备用方案）
-
 ## 📦 安装方法
 
-### 方法一：Chrome Web Store（推荐）
-1. 访问Chrome Web Store
-2. 搜索"Domain Search"
-3. 点击"添加至Chrome"
-
-### 方法二：开发者模式安装
+### 开发者模式安装
 1. 下载项目源码
 2. 打开Chrome浏览器，进入 `chrome://extensions/`
 3. 开启"开发者模式"
@@ -111,6 +61,35 @@ DomainSearch/
 4. 输入API Key并保存
 5. 享受更准确和完整的安全检测数据
 
+## 🛠️ 技术架构
+
+### 文件结构
+```
+DomainSearch/
+├── manifest.json          # 扩展配置文件
+├── popup.html            # 主界面HTML
+├── popup.js              # 前端逻辑
+├── background.js         # 后台服务脚本
+├── styles.css            # 样式文件
+├── img/                  # 图标资源
+│   └── logo.png
+└── README.md            # 说明文档
+```
+
+### 核心技术
+- **Chrome Extension Manifest V3**：使用最新的扩展开发标准
+- **Service Worker**：后台脚本处理网络请求
+- **CSS Grid & Flexbox**：现代化布局技术
+- **正则表达式**：智能数据提取
+- **异步编程**：Promise和async/await
+
+### 数据源
+- **Google DNS API**：域名IP解析
+- **爱站网 (aizhan.com)**：ICP备案信息
+- **爱企查 (aiqicha.baidu.com)**：公司详细信息
+- **VirusTotal API**：安全检测数据（需要API Key）
+- **VirusTotal HTML**：安全检测数据（备用方案）
+
 ## 🐛 故障排除
 
 ### 常见问题
@@ -126,7 +105,16 @@ DomainSearch/
 
 ## 📝 更新日志
 
-### v0.6 (当前版本) 🆕
+### v1.0 (当前版本) 🎉
+- ✅ 正式发布版本，功能完善稳定
+- ✅ 优化VirusTotal安全检测界面布局
+- ✅ 实现引擎检测结果两列并排显示
+- ✅ 优化检测结果排序（危险 > 安全 > 未评级）
+- ✅ 改进标签页标题为"VirusTotal安全检测"
+- ✅ 优化预览显示高度，提升用户体验
+- ✅ 完善所有功能模块的稳定性和性能
+
+### v0.6
 - ✅ 新增VirusTotal安全检测功能
 - ✅ 实现双标签页设计（域名信息 + VirusTotal）
 - ✅ 集成VirusTotal API支持
@@ -144,9 +132,7 @@ DomainSearch/
 - ✅ 增强调试信息功能
 - ✅ 修复CORS和网络请求问题
 
-### v0.4
-- ✅ 重构用户界面设计
+### v0.1
 - ✅ 添加资产归属信息
 - ✅ 集成ICP备案查询
 - ✅ 实现智能搜索功能
-
