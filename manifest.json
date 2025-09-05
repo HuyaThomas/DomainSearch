@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
     "name": "Domain Search",
-    "description": "域名信息收集助手",
-    "version": "0.5",
+    "description": "域名信息收集与安全检测",
+    "version": "1.0",
     "icons": {
         "16": "img/logo.png",
         "48": "img/logo.png",
@@ -32,7 +32,5 @@
         "service_worker": "background.js"
     }
 }
-
-
 
 
