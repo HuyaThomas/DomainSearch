@@ -24,7 +24,6 @@ document.addEventListener('DOMContentLoaded', function() {
     var vtMaliciousCountEl = document.getElementById('vt-malicious-count');
     var vtStatusEl = document.getElementById('vt-status');
     var vtVendorsEl = document.getElementById('vt-vendors');
-    var vtStatusText = document.getElementById('vt-status-text');
     var vtDebugBox = document.getElementById('vt-debug');
     var vtDebugToggle = document.getElementById('vt-debug-toggle');
     
@@ -411,7 +410,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // 加载VT数据
     function loadVirusTotalData(domain){
         if (vtVendorsEl) vtVendorsEl.innerHTML = '<div class="loading">正在获取安全检测结果...</div>';
-        if (vtStatusText) vtStatusText.textContent = '正在获取安全检测数据...';
         
         
         queryVirusTotal(domain).then(function(result){
@@ -495,15 +493,12 @@ document.addEventListener('DOMContentLoaded', function() {
                         vtVendorsEl.innerHTML = '<div class="no-data">暂无厂商检测结果</div>';
                     }
                 }
-                if (vtStatusText) vtStatusText.textContent = '安全检测完成';
             } else {
                 if (vtVendorsEl) vtVendorsEl.innerHTML = '<div class="error">未获取到VirusTotal数据</div>';
-                if (vtStatusText) vtStatusText.textContent = '未获取到数据，请查看调试信息';
             }
         }).catch(function(err){
             
             if (vtVendorsEl) vtVendorsEl.innerHTML = '<div class="error">获取安全检测数据失败: '+err+'</div>';
-            if (vtStatusText) vtStatusText.textContent = '获取数据失败: '+err;
         });
     }
 
