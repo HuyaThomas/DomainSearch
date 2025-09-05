@@ -98,10 +98,23 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                             
                             // 提取厂商检测结果
                             const lastAnalysisResults = attributes.last_analysis_results || {};
-                            result.vendors = Object.entries(lastAnalysisResults).map(([name, data]) => ({
+                            const allVendors = Object.entries(lastAnalysisResults).map(([name, data]) => ({
                                 name: name,
                                 result: data.result || 'Unknown'
-                            })); // 显示所有厂商
+                            }));
+                            
+                            // 按优先级排序：Malicious/Malware/Phishing > Clean > Unknown/Unrated
+                            allVendors.sort((a, b) => {
+                                const getPriority = (result) => {
+                                    const resultLower = (result || '').toLowerCase();
+                                    if (resultLower === 'malicious' || resultLower === 'malware' || resultLower === 'phishing') return 1;
+                                    if (resultLower === 'clean') return 2;
+                                    return 3; // Unknown, Unrated, 其他
+                                };
+                                return getPriority(a.result) - getPriority(b.result);
+                            });
+                            
+                            result.vendors = allVendors; // 显示所有厂商
                             
                             result.debug = debug;
                             sendResponse(result);
