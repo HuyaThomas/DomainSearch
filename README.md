@@ -3,6 +3,7 @@
 一个功能强大的Chrome扩展，用于快速收集和分析域名相关信息，包括IP地址、公司信息、ICP备案信息和VirusTotal安全检测等。
 
 <img width="1051" height="627" alt="image" src="https://github.com/user-attachments/assets/9d481325-40bf-4be8-af45-8964dcb72f32" />
+<img width="1049" height="674" alt="image" src="https://github.com/user-attachments/assets/919b093b-15c3-4ca3-91c8-b1f656d49ea9" />
 
 
 ## 🌟 主要功能
@@ -139,4 +140,5 @@ DomainSearch/
 - ✅ 添加资产归属信息
 - ✅ 集成ICP备案查询
 - ✅ 实现智能搜索功能
+
 
