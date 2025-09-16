@@ -11,6 +11,10 @@
 
 <img width="1280" height="800" alt="VirusTotal 安全检测展示效果" src="https://github.com/user-attachments/assets/ec9e792a-7f38-4bd6-9245-bf2d4cb01e8a" />
 
+### 支持自定义域名搜索
+
+<img width="1280" height="800" alt="恶意域名检测效果" src="https://github.com/user-attachments/assets/5af18088-3e13-4597-b4c5-b6882d3963f4" />
+
 
 ## 🌟 主要功能
 
@@ -146,6 +150,7 @@ DomainSearch/
 - ✅ 添加资产归属信息
 - ✅ 集成ICP备案查询
 - ✅ 实现智能搜索功能
+
 
 
 
