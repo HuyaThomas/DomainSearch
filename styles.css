@@ -305,7 +305,7 @@ input#query{width:100%;box-sizing:border-box;border:1px solid var(--border-color
 }
 
 .vendors-list {
-    max-height: 200px;
+    max-height: 190px;
     overflow-y: auto;
     overflow-x: hidden;
     background: var(--bg-primary);
