@@ -4,16 +4,17 @@
 
 ## 信息收集效果图
 
-<img width="1280" height="800" alt="域名信息展示效果" src="https://github.com/user-attachments/assets/c849c6ad-bf1e-4b3d-9110-01b1e6bce373" />
+<img width="1280" height="800" alt="1" src="https://github.com/user-attachments/assets/fb749416-4795-49d0-918a-067465deb367" />
 
 
 ## VT安全检测效果图
 
-<img width="1280" height="800" alt="VirusTotal 安全检测展示效果" src="https://github.com/user-attachments/assets/ec9e792a-7f38-4bd6-9245-bf2d4cb01e8a" />
+<img width="1280" height="800" alt="2" src="https://github.com/user-attachments/assets/d14060b3-52d0-493d-9837-6f87af275eaa" />
 
 ### 支持自定义域名搜索
 
-<img width="1280" height="800" alt="恶意域名检测效果" src="https://github.com/user-attachments/assets/5af18088-3e13-4597-b4c5-b6882d3963f4" />
+<img width="1280" height="800" alt="3" src="https://github.com/user-attachments/assets/e493c8d6-8bcb-4ede-b940-7d22ca142493" />
+
 
 
 ## 🌟 主要功能
@@ -156,3 +157,4 @@ DomainSearch/
 - ✅ 添加资产归属信息
 - ✅ 集成ICP备案查询
 - ✅ 实现智能搜索功能
+
