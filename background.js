@@ -15,7 +15,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             let ip = '';
             
             if (target) {
-                const r = await safeFetch('https://dns.google/resolve?name=' + encodeURIComponent(target) + '&type=A');
+                const r = await safeFetch('https://223.5.5.5/resolve?name=' + encodeURIComponent(target) + '&type=A');
                 if (r.ok) {
                     try {
                         const j = JSON.parse(r.text);
@@ -549,5 +549,4 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     })();
     return true;
 });
-
 
