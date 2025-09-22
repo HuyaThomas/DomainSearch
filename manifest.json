@@ -2,7 +2,7 @@
     "manifest_version": 3,
     "name": "Domain Search",
     "description": "域名信息收集与安全检测",
-    "version": "1.0",
+    "version": "1.1",
     "icons": {
         "16": "img/logo.png",
         "48": "img/logo.png",
@@ -22,7 +22,7 @@
         "tabs"
     ],
     "host_permissions": [
-        "https://dns.google/*",
+        "https://223.5.5.5/*",
         "https://aiqicha.baidu.com/*",
         "https://www.aizhan.com/*",
         "https://www.virustotal.com/*"
@@ -31,6 +31,5 @@
         "service_worker": "background.js"
     }
 }
-
 
 
