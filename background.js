@@ -172,11 +172,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
         if (msg && msg.type === 'queryAizhan') {
             const q = msg.query || '';
+            const isRetry = msg.isRetry || false;
             
             try {
-                // 从爱站网获取备案信息
                 const aizhanUrl = 'https://www.aizhan.com/cha/' + encodeURIComponent(q);
-                const rAizhan = await safeFetch(aizhanUrl, { 
+                let rAizhan = await safeFetch(aizhanUrl, { 
                     credentials: 'include',
                     headers: {
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -201,11 +201,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     return; 
                 }
                 
-                const html = rAizhan.text || '';
+                let html = rAizhan.text || '';
                 
-                function pick(reArr) {
+                function pick(reArr, text) {
+                    text = text || html;
                     for (const re of reArr) { 
-                        const m = html.match(re); 
+                        const m = text.match(re); 
                         if (m && m[1]) return m[1].trim(); 
                     }
                     return '';
@@ -216,13 +217,63 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     /<span[^>]*id="icp_company"[^>]*>([^<]{1,100})</
                 ]);
                 
+                // 如果提取失败且不是重试，尝试通过后台标签页访问以建立会话
+                if (!company && !isRetry) {
+                    // 创建后台标签页访问目标URL
+                    await new Promise(resolve => {
+                        chrome.tabs.create({ url: aizhanUrl, active: false }, (tab) => {
+                            if (!tab) { resolve(); return; }
+                            const tabId = tab.id;
+                            let finished = false;
+                            
+                            // 清理函数
+                            const cleanup = () => {
+                                if (finished) return;
+                                finished = true;
+                                chrome.tabs.onUpdated.removeListener(listener);
+                                chrome.tabs.remove(tabId).catch(() => {});
+                                resolve();
+                            };
+
+                            // 超时保护 (8秒)
+                            setTimeout(cleanup, 8000);
+
+                            const listener = (tid, changeInfo) => {
+                                if (tid === tabId && changeInfo.status === 'complete') {
+                                    // 稍微等待一下JS执行和Cookie写入
+                                    setTimeout(cleanup, 2000);
+                                }
+                            };
+                            chrome.tabs.onUpdated.addListener(listener);
+                        });
+                    });
+                    
+                    // 重试获取
+                    rAizhan = await safeFetch(aizhanUrl, { 
+                        credentials: 'include',
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+                            'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+                            'Accept-Encoding': 'gzip, deflate, br',
+                            'Referer': 'https://www.aizhan.com/'
+                        }
+                    });
+                    html = rAizhan.text || '';
+                    
+                    // 再次提取
+                    company = pick([
+                        /<span[^>]*id="icp_company"[^>]*>([^<]{1,100})</
+                    ], html);
+                }
+
                 let icpNumber = pick([
                     /<a[^>]*id="icp_icp"[^>]*>([^<]{1,50})</,
                     /备案号[^<]*>([^<]{1,50})</,
                     /备案信息[^<]*备案号[^<]*>([^<]{1,50})</,
                     /([京津沪渝冀豫云辽黑湘皖鲁新苏浙赣鄂桂甘晋蒙陕吉闽贵粤青藏川宁琼使领][A-Z][0-9A-Z]{4,10}ICP备[0-9]{4,8}号[^<]*)/,
                     /许可证号[^<]*>([^<]{1,50})</
-                ]);
+                ], html);
                 
                 let icpStatus = pick([
                     /<span[^>]*id="icp_type"[^>]*>([^<]{1,20})</,
@@ -231,7 +282,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     /备案信息[^<]*性质[^<]*>([^<]{1,20})</,
                     /备案状态[^<]*>([^<]{1,20})</,
                     /状态[^<]*>([^<]{1,20})</
-                ]);
+                ], html);
                 
                 sendResponse({ 
                     source: 'aizhan', 
