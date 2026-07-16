@@ -41,6 +41,11 @@ document.addEventListener('DOMContentLoaded', function() {
         el.textContent = text || '-'; 
         el.classList.toggle('muted', !text); 
     }
+
+    function setLoading(el, text) {
+        el.textContent = text || '正在获取中...';
+        el.classList.remove('muted');
+    }
     
     function decodeUnicode(str) {
         try {
@@ -111,51 +116,42 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     async function queryAizhan(q) {
-        try {
-            const result = await chrome.runtime.sendMessage({ type: 'queryAizhan', query: q });
-            return result;
-        } catch (error) {
-            throw error;
-        }
+        return await chrome.runtime.sendMessage({ type: 'queryAizhan', query: q });
     }
 
-    async function queryVirusTotal(domain) {
-        const res = await chrome.storage.local.get(['vtApiKey']);
-        const apiKey = (res && res.vtApiKey) || '';
+    async function queryVirusTotal(domain, apiKey) {
         return await chrome.runtime.sendMessage({ type: 'queryVirusTotal', domain: domain, apiKey });
     }
 
-    function appendList(parent, title, href, desc) {
-        var item = document.createElement('div');
-        item.className = 'list-item';
-        
-        var a = document.createElement('a');
-        a.href = href || '#'; 
-        a.target = '_blank'; 
-        a.textContent = title || '';
-        
-        var p = document.createElement('div');
-        p.className = 'muted';
-        p.textContent = desc || '';
-        
-        item.appendChild(a); 
-        item.appendChild(p); 
-        parent.appendChild(item);
+    function mergeDebugText(existingText, patch) {
+        if (existingText && existingText.trim()) {
+            try {
+                return JSON.stringify({ ...JSON.parse(existingText), ...patch }, null, 2);
+            } catch (e) {}
+        }
+        return JSON.stringify(patch, null, 2);
     }
+
+    function showDebugPatch(patch) {
+        if (!debugBox || !debugToggle) return;
+        debugToggle.style.display = 'flex';
+        debugBox.textContent = mergeDebugText(debugBox.textContent, patch);
+    }
+
 
     function refresh() {
         var q = queryInput.value.trim();
         
         // 清空显示
         setText(hostKvEl, q);
-        setText(ipKvEl, '');
-        setText(companyEl, '');
-        setText(legalEl, '');
-        setText(capitalEl, '');
-        setText(phoneEl, '');
-        setText(emailEl, '');
-        setText(icpNumberEl, '');
-        setText(icpStatusEl, '');
+        setLoading(ipKvEl);
+        setLoading(companyEl);
+        setLoading(legalEl);
+        setLoading(capitalEl);
+        setLoading(phoneEl);
+        setLoading(emailEl);
+        setLoading(icpNumberEl);
+        setLoading(icpStatusEl);
         
         if (debugBox) { 
             debugBox.style.display = 'none'; 
@@ -167,8 +163,10 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         // 获取IP地址
-        resolveTarget(q).then(function(r) { 
-            setText(ipKvEl, r && r.ip); 
+        resolveTarget(q).then(function(r) {
+            setText(ipKvEl, (r && r.ip) || '未获取到');
+        }).catch(function() {
+            setText(ipKvEl, '未获取到');
         });
 
         // 先获取备案信息，然后用主办单位名称去爱企查搜索详细信息
@@ -176,10 +174,10 @@ document.addEventListener('DOMContentLoaded', function() {
             if (r && r.source === 'aizhan') {
                 if (r.company) { 
                     setText(icpCompanyEl, decodeUnicode(r.company)); 
-                    // 同时设置资产归属的所属公司
+                    // ??
                     setText(companyEl, decodeUnicode(r.company)); 
                     
-                    // 用主办单位名称去爱企查搜索详细信息
+                    // ??
                     queryICP(r.company).then(function(aiqichaResult) {
                         if (aiqichaResult.source === 'aiqicha') {
                             if (aiqichaResult.legal) { 
@@ -195,39 +193,14 @@ document.addEventListener('DOMContentLoaded', function() {
                                 setText(emailEl, aiqichaResult.email); 
                             }
                             
-                            // 合并调试信息
-                            if (aiqichaResult.debug) { 
-                                debugToggle.style.display = 'flex';
-                                let currentDebug = debugBox.textContent;
-                                
-                                if (currentDebug && currentDebug.trim()) {
-                                    try {
-                                        let currentObj = JSON.parse(currentDebug);
-                                        let mergedDebug = { ...currentObj, [aiqichaResult.source]: aiqichaResult.debug };
-                                        debugBox.textContent = JSON.stringify(mergedDebug, null, 2);
-                                    } catch(e) {
-                                        debugBox.textContent = JSON.stringify({ aizhan: r.debug, [aiqichaResult.source]: aiqichaResult.debug }, null, 2);
-                                    }
-                                } else {
-                                    debugBox.textContent = JSON.stringify({ aizhan: r.debug, [aiqichaResult.source]: aiqichaResult.debug }, null, 2);
-                                }
+                            // ??
+                            if (aiqichaResult.debug) {
+                                showDebugPatch({ aizhan: r.debug, [aiqichaResult.source]: aiqichaResult.debug });
                             }
                         }
                     }).catch(function(error) {
-                        // 爱企查查询失败也要显示调试信息
-                        debugToggle.style.display = 'flex';
-                        let currentDebug = debugBox.textContent;
-                        if (currentDebug && currentDebug.trim()) {
-                            try {
-                                let currentObj = JSON.parse(currentDebug);
-                                let mergedDebug = { ...currentObj, aiqichaError: String(error) };
-                                debugBox.textContent = JSON.stringify(mergedDebug, null, 2);
-                            } catch(e) {
-                                debugBox.textContent = JSON.stringify({ aizhan: r.debug, aiqichaError: String(error) }, null, 2);
-                            }
-                        } else {
-                            debugBox.textContent = JSON.stringify({ aizhan: r.debug, aiqichaError: String(error) }, null, 2);
-                        }
+                        // ??
+                        showDebugPatch({ aizhan: r.debug, aiqichaError: String(error) });
                     });
                 }
                 if (r.icpNumber) { 
@@ -237,46 +210,20 @@ document.addEventListener('DOMContentLoaded', function() {
                     setText(icpStatusEl, r.icpStatus); 
                 }
                                      
-                if (r.debug) { 
-                    debugToggle.style.display = 'flex';
-                    // 合并调试信息
-                    let currentDebug = debugBox.textContent;
-                    
-                    if (currentDebug && currentDebug.trim()) {
-                        try {
-                            let currentObj = JSON.parse(currentDebug);
-                            let mergedDebug = { ...currentObj, aizhan: r.debug };
-                            debugBox.textContent = JSON.stringify(mergedDebug, null, 2);
-                        } catch(e) {
-                            debugBox.textContent = JSON.stringify({ aizhan: r.debug }, null, 2);
-                        }
-                    } else {
-                        debugBox.textContent = JSON.stringify({ aizhan: r.debug }, null, 2);
-                    }
+                if (r.debug) {
+                    showDebugPatch({ aizhan: r.debug });
                 }
             }
         }).catch(function(error) {
-            // 即使出错也要显示调试信息
-            debugToggle.style.display = 'flex';
-            let currentDebug = debugBox.textContent;
-            if (currentDebug && currentDebug.trim()) {
-                try {
-                    let currentObj = JSON.parse(currentDebug);
-                    let mergedDebug = { ...currentObj, aizhanError: String(error) };
-                    debugBox.textContent = JSON.stringify(mergedDebug, null, 2);
-                } catch(e) {
-                    debugBox.textContent = JSON.stringify({ aizhanError: String(error) }, null, 2);
-                }
-            } else {
-                debugBox.textContent = JSON.stringify({ aizhanError: String(error) }, null, 2);
-            }
+            // ???
+            showDebugPatch({ aizhanError: String(error) });
         });
 
-        // 同时获取VirusTotal安全检测数据
+        // ??VirusTotal?
         loadVirusTotalData(q);
     }
 
-    // 初始化：获取当前标签页的域名
+    // ???
     getActiveHost(function(host) {
         queryInput.value = host || '';
         if (queryInput && queryInput.style.display !== 'none') { 
@@ -409,96 +356,115 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 加载VT数据
     function loadVirusTotalData(domain){
-        if (vtVendorsEl) vtVendorsEl.innerHTML = '<div class="loading">正在获取安全检测结果...</div>';
-        
-        
-        queryVirusTotal(domain).then(function(result){
-            
-            if (result && result.debug) {
-                if (vtDebugToggle) vtDebugToggle.style.display = 'flex';
-                if (vtDebugBox) vtDebugBox.textContent = JSON.stringify({ virustotal: result.debug }, null, 2);
+        if (vtScoreEl) vtScoreEl.textContent = '...';
+        if (vtTotalEnginesEl) vtTotalEnginesEl.textContent = '...';
+        if (vtMaliciousCountEl) vtMaliciousCountEl.textContent = '...';
+        if (vtStatusEl) vtStatusEl.textContent = '正在查询...';
+        if (vtVendorsEl) vtVendorsEl.innerHTML = '<div class="loading">正在加载检测结果...</div>';
+
+        chrome.storage.local.get(['vtApiKey'], function(result) {
+            const apiKey = (result && result.vtApiKey) || '';
+            if (!apiKey) {
+                if (vtScoreEl) vtScoreEl.textContent = '-';
+                if (vtTotalEnginesEl) vtTotalEnginesEl.textContent = '-';
+                if (vtMaliciousCountEl) vtMaliciousCountEl.textContent = '-';
+                if (vtStatusEl) vtStatusEl.textContent = '您还未配置VirusTotal API Key';
+                if (vtVendorsEl) vtVendorsEl.innerHTML = '<div class="error">您还未配置VirusTotal API Key</div>';
+                if (vtDebugToggle) vtDebugToggle.style.display = 'none';
+                if (vtDebugBox) vtDebugBox.style.display = 'none';
+                return;
             }
-            if (result && result.source === 'virustotal') {
-                var mc = Number(result.maliciousCount||0);
-                var te = Number(result.totalEngines||0);
-                var score = te ? Math.round((1 - mc/te) * 100) : 100;
-                if (vtScoreEl) {
-                    vtScoreEl.textContent = score + '%';
-                    // 根据评分设置圆圈背景颜色
-                    const scoreCircle = vtScoreEl.closest('.score-circle');
-                    if (scoreCircle) {
-                        if (score < 90) {
-                            scoreCircle.style.background = 'linear-gradient(135deg, var(--error-color), #dc3545)'; // 红色
-                        } else if (score < 95) {
-                            scoreCircle.style.background = 'linear-gradient(135deg, var(--warning-color), #ffc107)'; // 黄色
-                        } else {
-                            scoreCircle.style.background = 'linear-gradient(135deg, var(--success-color), #28a745)'; // 绿色
+
+            queryVirusTotal(domain, apiKey).then(function(result){
+                
+                if (result && result.debug) {
+                    if (vtDebugToggle) vtDebugToggle.style.display = 'flex';
+                    if (vtDebugBox) vtDebugBox.textContent = JSON.stringify({ virustotal: result.debug }, null, 2);
+                }
+                if (result && result.source === 'virustotal') {
+                    var mc = Number(result.maliciousCount||0);
+                    var te = Number(result.totalEngines||0);
+                    var score = te ? Math.round((1 - mc/te) * 100) : 100;
+                    if (vtScoreEl) {
+                        vtScoreEl.textContent = score + '%';
+                        // ???
+                        const scoreCircle = vtScoreEl.closest('.score-circle');
+                        if (scoreCircle) {
+                            if (score < 90) {
+                                scoreCircle.style.background = 'linear-gradient(135deg, var(--error-color), #dc3545)'; // ??
+                            } else if (score < 95) {
+                                scoreCircle.style.background = 'linear-gradient(135deg, var(--warning-color), #ffc107)'; // ??
+                            } else {
+                                scoreCircle.style.background = 'linear-gradient(135deg, var(--success-color), #28a745)'; // ??
+                            }
                         }
                     }
-                }
-                if (vtTotalEnginesEl) vtTotalEnginesEl.textContent = te || '-';
-                if (vtMaliciousCountEl) {
-                    vtMaliciousCountEl.textContent = mc || '-';
-                    // 恶意检测数量颜色
-                    if (mc > 0) {
-                        vtMaliciousCountEl.style.color = 'var(--error-color)'; // 红色
-                    } else {
-                        vtMaliciousCountEl.style.color = 'var(--text-primary)'; // 默认颜色
+                    if (vtTotalEnginesEl) vtTotalEnginesEl.textContent = te || '-';
+                    if (vtMaliciousCountEl) {
+                        vtMaliciousCountEl.textContent = mc || '-';
+                        // ??
+                        if (mc > 0) {
+                            vtMaliciousCountEl.style.color = 'var(--error-color)'; // ??
+                        } else {
+                            vtMaliciousCountEl.style.color = 'var(--text-primary)'; // ??
+                        }
                     }
-                }
-                if (vtStatusEl) {
-                    vtStatusEl.textContent = result.status || '-';
-                    // 检测状态颜色
-                    if (result.status === 'Malicious') {
-                        vtStatusEl.style.color = 'var(--error-color)'; // 红色
-                    } else if (result.status === 'Clean') {
-                        vtStatusEl.style.color = 'var(--success-color)'; // 绿色
-                    } else {
-                        vtStatusEl.style.color = 'var(--text-primary)'; // 默认颜色
+                    if (vtStatusEl) {
+                        vtStatusEl.textContent = result.status || '-';
+                        // ??
+                        if (result.status === 'Malicious') {
+                            vtStatusEl.style.color = 'var(--error-color)'; // ??
+                        } else if (result.status === 'Clean') {
+                            vtStatusEl.style.color = 'var(--success-color)'; // ??
+                        } else {
+                            vtStatusEl.style.color = 'var(--text-primary)'; // ??
+                        }
                     }
-                }
-                if (vtVendorsEl) {
-                    if (result.vendors && result.vendors.length) {
-                        vtVendorsEl.innerHTML = result.vendors.map(function(v){
-                            var cls, icon, displayText;
-                            
-                            // 调试：输出实际的结果值
-                            console.log('Vendor result:', v.name, '->', v.result);
-                            
-                            // 转换为小写进行比较，确保匹配
-                            var resultLower = (v.result || '').toLowerCase();
-                            
-                            if (resultLower === 'clean') {
-                                cls = 'clean';
-                                icon = '✅';
-                                displayText = 'Clean';
-                            } else if (resultLower === 'malicious' || resultLower === 'malware' || resultLower === 'phishing') {
-                                cls = 'malicious';
-                                icon = '❗';
-                                displayText = v.result; // 保持原始大小写
-                            } else if (resultLower === 'unknown' || resultLower === 'unrated') {
-                                cls = 'unrated';
-                                icon = '❓';
-                                displayText = 'Unrated';
-                            } else {
-                                // 其他状态（如 Suspicious 等）
-                                cls = 'suspicious';
-                                icon = '⚠️';
-                                displayText = v.result;
-                            }
-                            
-                            return '<div class="vendor-item"><span class="vendor-name">'+v.name+'</span><span class="vendor-result '+cls+'">'+icon+' '+displayText+'</span></div>';
-                        }).join('');
-                    } else {
-                        vtVendorsEl.innerHTML = '<div class="no-data">暂无厂商检测结果</div>';
+                    if (vtVendorsEl) {
+                        if (result.vendors && result.vendors.length) {
+                            vtVendorsEl.innerHTML = result.vendors.map(function(v){
+                                var cls, icon, displayText;
+                                
+                                // ??
+                                
+                                // ???
+                                var resultLower = (v.result || '').toLowerCase();
+                                
+                                if (resultLower === 'clean') {
+                                    cls = 'clean';
+                                    icon = '?';
+                                    displayText = 'Clean';
+                                } else if (resultLower === 'malicious' || resultLower === 'malware' || resultLower === 'phishing') {
+                                    cls = 'malicious';
+                                    icon = '?';
+                                    displayText = v.result; // ????
+                                } else if (resultLower === 'unknown' || resultLower === 'unrated') {
+                                    cls = 'unrated';
+                                    icon = '?';
+                                    displayText = 'Unrated';
+                                } else {
+                                    // ?????? Suspicious
+                                    cls = 'suspicious';
+                                    icon = '?';
+                                    displayText = v.result;
+                                }
+                                
+                                return '<div class="vendor-item"><span class="vendor-name">'+v.name+'</span><span class="vendor-result '+cls+'">'+icon+' '+displayText+'</span></div>';
+                            }).join('');
+                        } else {
+                            vtVendorsEl.innerHTML = '<div class="no-data">暂无检测结果</div>';
+                        }
                     }
+                } else {
+                    if (vtVendorsEl) vtVendorsEl.innerHTML = '<div class="error">未能获取VirusTotal数据</div>';
                 }
-            } else {
-                if (vtVendorsEl) vtVendorsEl.innerHTML = '<div class="error">未获取到VirusTotal数据</div>';
-            }
-        }).catch(function(err){
-            
-            if (vtVendorsEl) vtVendorsEl.innerHTML = '<div class="error">获取安全检测数据失败: '+err+'</div>';
+            }).catch(function(err){
+                if (vtScoreEl) vtScoreEl.textContent = '-';
+                if (vtTotalEnginesEl) vtTotalEnginesEl.textContent = '-';
+                if (vtMaliciousCountEl) vtMaliciousCountEl.textContent = '-';
+                if (vtStatusEl) vtStatusEl.textContent = '加载失败';
+                if (vtVendorsEl) vtVendorsEl.innerHTML = '<div class="error">请求失败：'+err+'</div>';
+            });
         });
     }
 
