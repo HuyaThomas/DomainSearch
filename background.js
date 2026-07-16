@@ -8,6 +8,449 @@ async function safeFetch(input, init) {
     }
 }
 
+function decodeHtml(text) {
+    return String(text || '')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>');
+}
+
+function stripTags(text) {
+    return decodeHtml(text).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function normalizeCompanyName(name) {
+    return stripTags(name)
+        .toLowerCase()
+        .replace(/[·•\s　、,，.。()（）【】\[\]{}<>]/g, '')
+        .replace(/有限责任公司|股份有限公司|集团有限公司|有限公司|公司|集团/g, '');
+}
+
+function scoreCompanyMatch(query, candidateName, candidatePath) {
+    const q = normalizeCompanyName(query);
+    const c = normalizeCompanyName(candidateName);
+    let score = 0;
+
+    if (q && c) {
+        if (q === c) score += 100;
+        else if (c.includes(q) || q.includes(c)) score += 80;
+        else {
+            const qHead = q.slice(0, Math.min(q.length, 8));
+            const cHead = c.slice(0, Math.min(c.length, 8));
+            if (qHead && cHead && qHead === cHead) score += 35;
+            if (q.length >= 4 && c.length >= 4 && q.slice(0, 4) === c.slice(0, 4)) score += 20;
+        }
+    }
+
+    if (candidatePath) {
+        if (/company_detail_/i.test(candidatePath)) score += 10;
+        if (/\/company\//i.test(candidatePath)) score += 8;
+    }
+
+    return score;
+}
+
+function collectAiqichaCandidates(html, query) {
+    const candidates = [];
+    const seen = new Set();
+    const source = String(html || '');
+
+    function addCandidate(path, name, kind) {
+        if (!path) return;
+        const cleanPath = decodeHtml(path).trim();
+        if (!cleanPath) return;
+        if (seen.has(cleanPath)) return;
+        seen.add(cleanPath);
+        candidates.push({
+            path: cleanPath,
+            name: stripTags(name || ''),
+            kind: kind || 'unknown',
+            score: scoreCompanyMatch(query, name, cleanPath)
+        });
+    }
+
+    const anchorRe = /<a[^>]*href="([^"]*(?:company_detail_|\/company\/)[^"]*)"[^>]*>([\s\S]{0,180}?)<\/a>/gi;
+    let m;
+    while ((m = anchorRe.exec(source))) {
+        addCandidate(m[1], m[2], 'anchor');
+    }
+
+    const jsonNameFirstRe = /"(?:entName|companyName|name|title)"\s*:\s*"([^"]{1,120})"[\s\S]{0,220}?"(?:href|url)"\s*:\s*"([^"]*(?:company_detail_|\/company\/)[^"]+)"/gi;
+    while ((m = jsonNameFirstRe.exec(source))) {
+        addCandidate(m[2], m[1], 'json');
+    }
+
+    const jsonPathFirstRe = /"(?:href|url)"\s*:\s*"([^"]*(?:company_detail_|\/company\/)[^"]+)"[\s\S]{0,220}?"(?:entName|companyName|name|title)"\s*:\s*"([^"]{1,120})"/gi;
+    while ((m = jsonPathFirstRe.exec(source))) {
+        addCandidate(m[1], m[2], 'json');
+    }
+
+    const plainPathRe = /(\/(?:company_detail_[a-zA-Z0-9_\-]+|company\/[a-zA-Z0-9_\-]+))/gi;
+    while ((m = plainPathRe.exec(source))) {
+        const path = m[1];
+        const windowStart = Math.max(0, m.index - 160);
+        const windowEnd = Math.min(source.length, m.index + path.length + 220);
+        const snippet = source.slice(windowStart, windowEnd);
+        const nameMatch = snippet.match(/"(?:entName|companyName|name|title)"\s*:\s*"([^"]{1,120})"/i)
+            || snippet.match(/title="([^"]{1,120})"/i)
+            || snippet.match(/>([^<]{2,120})</);
+        addCandidate(path, nameMatch && nameMatch[1], 'path');
+    }
+
+    candidates.sort((a, b) => b.score - a.score);
+    return candidates;
+}
+
+function extractAiqichaFields(html) {
+    const source = String(html || '');
+
+    function pick(reArr) {
+        for (const re of reArr) {
+            const m = source.match(re);
+            if (m && m[1]) return stripTags(m[1]);
+        }
+        return '';
+    }
+
+    const company = pick([
+        /"entName"\s*:\s*"([^"]{1,120})"/i,
+        /"companyName"\s*:\s*"([^"]{1,120})"/i,
+        /<title>\s*([^<>{}]{1,120}?)\s*-\s*爱企查\s*<\/title>/i,
+        /公司名称[^<]*>([^<]{1,120})</i,
+        /企业名称[^<]*>([^<]{1,120})</i
+    ]);
+
+    const legal = pick([
+        /"legalPersonName"\s*:\s*"([^"]{1,80})"/i,
+        /"legalPerson"\s*:\s*"([^"]{1,80})"/i,
+        /法定代表人[^<]*>([^<]{1,80})</i,
+        /法人代表[^<]*>([^<]{1,80})</i,
+        /法人[^<]*>([^<]{1,80})</i
+    ]);
+
+    const capital = pick([
+        /"regCapital"\s*:\s*"([^"]{1,80})"/i,
+        /"registeredCapital"\s*:\s*"([^"]{1,80})"/i,
+        /注册资本[^<]*>([^<]{1,80})</i,
+        /注册资金[^<]*>([^<]{1,80})</i
+    ]);
+
+    const phone = pick([
+        /"telephone"\s*:\s*"([^"]{3,40})"/i,
+        /电话[^<]*>([^<]{3,40})</i,
+        /联系电话[^<]*>([^<]{3,40})</i
+    ]);
+
+    const email = pick([
+        /"email"\s*:\s*"([^"]{3,80})"/i,
+        /邮箱[^<]*>([^<]{3,80})</i,
+        /电子邮箱[^<]*>([^<]{3,80})</i,
+        /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/
+    ]);
+
+    return { company, legal, capital, phone, email };
+}
+
+function hasUsefulAiqichaData(fields) {
+    if (!fields) return false;
+    return !!(fields.company || fields.legal || fields.capital || fields.phone || fields.email);
+}
+
+function extractAiqichaPageData(html) {
+    const source = String(html || '');
+    const marker = 'window.pageData =';
+    const idx = source.indexOf(marker);
+    if (idx < 0) return null;
+
+    let i = idx + marker.length;
+    while (i < source.length && /\s/.test(source[i])) i++;
+    if (i >= source.length || (source[i] !== '{' && source[i] !== '[')) return null;
+
+    const start = i;
+    let depth = 0;
+    let inString = false;
+    let stringQuote = '';
+    let escaped = false;
+
+    for (; i < source.length; i++) {
+        const ch = source[i];
+        if (inString) {
+            if (escaped) {
+                escaped = false;
+            } else if (ch === '\\') {
+                escaped = true;
+            } else if (ch === stringQuote) {
+                inString = false;
+                stringQuote = '';
+            }
+            continue;
+        }
+
+        if (ch === '"' || ch === "'") {
+            inString = true;
+            stringQuote = ch;
+            continue;
+        }
+
+        if (ch === '{' || ch === '[') {
+            depth++;
+        } else if (ch === '}' || ch === ']') {
+            depth--;
+            if (depth === 0) {
+                const jsonText = source.slice(start, i + 1);
+                try {
+                    return JSON.parse(jsonText);
+                } catch (e) {
+                    return null;
+                }
+            }
+        }
+    }
+
+    return null;
+}
+
+function findAiqichaResultList(value, depth) {
+    if (depth > 6 || value == null) return [];
+    if (Array.isArray(value)) return value;
+    if (typeof value === 'string') {
+        const text = value.trim();
+        if (!text) return [];
+        try {
+            return findAiqichaResultList(JSON.parse(text), depth + 1);
+        } catch (e) {
+            return [];
+        }
+    }
+    if (typeof value === 'object') {
+        const keys = ['resultList', 'list', 'items', 'data', 'result'];
+        for (const key of keys) {
+            if (value[key] == null) continue;
+            const found = findAiqichaResultList(value[key], depth + 1);
+            if (found.length) return found;
+        }
+    }
+    return [];
+}
+
+function scoreAiqichaSearchCandidate(normalizedQuery, name, item, index) {
+    const normalizedName = normalizeCompanyName(name);
+    let score = 0;
+
+    if (normalizedQuery && normalizedName) {
+        if (normalizedQuery === normalizedName) score += 120;
+        else if (normalizedName.includes(normalizedQuery) || normalizedQuery.includes(normalizedName)) score += 90;
+        else {
+            const qHead = normalizedQuery.slice(0, Math.min(8, normalizedQuery.length));
+            const nHead = normalizedName.slice(0, Math.min(8, normalizedName.length));
+            if (qHead && nHead && qHead === nHead) score += 40;
+            if (normalizedQuery.slice(0, 4) === normalizedName.slice(0, 4)) score += 20;
+        }
+    }
+
+    if ((item.openStatus || '') === '??') score += 5;
+    if (item.legalPerson) score += 3;
+    if (item.titleLegal) score += 2;
+    if (item.regCap) score += 3;
+    if (item.telephone || item.phoneinfoCount) score += 2;
+    if (item.email || item.emailinfoCount) score += 2;
+    score += Math.max(0, 20 - index);
+    return score;
+}
+
+function normalizeAiqichaSearchItem(item, index, normalizedQuery) {
+    const name = stripTags(item.titleName || item.entName || item.companyName || item.name || '');
+    return {
+        index: index,
+        pid: item.pid || '',
+        name: name,
+        score: scoreAiqichaSearchCandidate(normalizedQuery, name, item, index),
+        item: item,
+        fields: {
+            company: name,
+            legal: stripTags(item.legalPerson || item.titleLegal || ''),
+            capital: stripTags(item.regCap || ''),
+            phone: stripTags(item.telephone || (item.phoneinfo && item.phoneinfo[0] && item.phoneinfo[0].phone) || ''),
+            email: stripTags(item.email || (item.emailinfo && item.emailinfo[0] && item.emailinfo[0].email) || '')
+        }
+    };
+}
+
+function buildAiqichaSearchResultFromPageData(pageData, query, sourceLabel) {
+    const normalizedQuery = normalizeCompanyName(query);
+    const resultList = findAiqichaResultList(pageData, 0);
+    const parsedCandidates = Array.isArray(resultList)
+        ? resultList.map((item, index) => normalizeAiqichaSearchItem(item, index, normalizedQuery)).filter(x => x.name)
+        : [];
+    parsedCandidates.sort((a, b) => b.score - a.score);
+
+    if (!parsedCandidates.length) return null;
+
+    const best = parsedCandidates[0];
+    return {
+        pageData: pageData,
+        resultCount: parsedCandidates.length,
+        selected: {
+            index: best.index,
+            pid: best.pid,
+            name: best.name,
+            score: best.score,
+            source: sourceLabel
+        },
+        fields: best.fields,
+        sample: best.item,
+        candidates: parsedCandidates.slice(0, 5)
+    };
+}
+
+function extractAiqichaSearchResult(input, query) {
+    const isStringInput = typeof input === 'string';
+    const source = isStringInput ? String(input || '') : '';
+    const pageData = isStringInput ? extractAiqichaPageData(source) : input;
+    const parsedResult = buildAiqichaSearchResultFromPageData(pageData, query, isStringInput ? 'parsed-list' : 'tab-pageData');
+
+    if (parsedResult) return parsedResult;
+    if (!isStringInput) return null;
+
+    const normalizedQuery = normalizeCompanyName(query);
+
+    function extractWindowValue(windowText, patterns) {
+        for (const re of patterns) {
+            const m = windowText.match(re);
+            if (m && m[1]) return stripTags(m[1]);
+        }
+        return '';
+    }
+
+    const titleRe = /"(?:titleName|entName|companyName)"\s*:\s*"([^"]{1,200})"/gi;
+    const rawCandidates = [];
+    const seen = new Set();
+    let m;
+    let guard = 0;
+    while ((m = titleRe.exec(source)) && guard < 40) {
+        guard++;
+        const name = stripTags(m[1]);
+        const key = normalizeCompanyName(name) || name;
+        if (!name || seen.has(key)) continue;
+        seen.add(key);
+
+        const windowStart = Math.max(0, m.index - 260);
+        const windowEnd = Math.min(source.length, m.index + 6000);
+        const windowText = source.slice(windowStart, windowEnd);
+        const legal = extractWindowValue(windowText, [
+            /"legalPerson"\s*:\s*"([^"]{1,80})"/i,
+            /"titleLegal"\s*:\s*"([^"]{1,80})"/i,
+            /\u6cd5\u5b9a\u4ee3\u8868\u4eba[^<]*>([^<]{1,80})</i,
+            /\u6cd5\u4eba\u4ee3\u8868[^<]*>([^<]{1,80})</i,
+            /\u6cd5\u4eba[^<]*>([^<]{1,80})</i
+        ]);
+        const capital = extractWindowValue(windowText, [
+            /"regCap"\s*:\s*"([^"]{1,80})"/i,
+            /"registeredCapital"\s*:\s*"([^"]{1,80})"/i,
+            /\u6ce8\u518c\u8d44\u672c[^<]*>([^<]{1,80})</i,
+            /\u6ce8\u518c\u8d44\u91d1[^<]*>([^<]{1,80})</i
+        ]);
+        const phone = extractWindowValue(windowText, [
+            /"telephone"\s*:\s*"([^"]{3,40})"/i,
+            /\u7535\u8bdd[^<]*>([^<]{3,40})</i,
+            /\u8054\u7cfb\u7535\u8bdd[^<]*>([^<]{3,40})</i
+        ]);
+        const email = extractWindowValue(windowText, [
+            /"email"\s*:\s*"([^"]{3,80})"/i,
+            /\u90ae\u7bb1[^<]*>([^<]{3,80})</i,
+            /\u7535\u5b50\u90ae\u7bb1[^<]*>([^<]{3,80})</i,
+            /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/
+        ]);
+        const pidMatch = windowText.match(/"pid"\s*:\s*"([^"]{5,})"/i);
+        const regNoMatch = windowText.match(/"regNo"\s*:\s*"([^"]{5,})"/i);
+
+        rawCandidates.push({
+            index: rawCandidates.length,
+            pid: pidMatch ? pidMatch[1] : '',
+            regNo: regNoMatch ? regNoMatch[1] : '',
+            name: name,
+            score: scoreAiqichaSearchCandidate(normalizedQuery, name, { legalPerson: legal, titleLegal: legal, regCap: capital, telephone: phone, email: email }, rawCandidates.length),
+            fields: {
+                company: name,
+                legal: legal,
+                capital: capital,
+                phone: phone,
+                email: email
+            },
+            sample: windowText.slice(0, 1200)
+        });
+    }
+
+    rawCandidates.sort((a, b) => b.score - a.score);
+    if (rawCandidates.length) {
+        const best = rawCandidates[0];
+        return {
+            pageData: pageData,
+            resultCount: rawCandidates.length,
+            selected: {
+                index: best.index,
+                pid: best.pid,
+                regNo: best.regNo,
+                name: best.name,
+                score: best.score,
+                source: 'raw-window'
+            },
+            fields: best.fields,
+            sample: best.sample,
+            candidates: rawCandidates.slice(0, 5)
+        };
+    }
+
+    return null;
+}
+
+async function captureAiqichaSnapshot(url) {
+    return await new Promise((resolve) => {
+        chrome.tabs.create({ url: url, active: false }, (tab) => {
+            if (!tab || !tab.id) { resolve(null); return; }
+            const tabId = tab.id;
+            let finished = false;
+            let timer = null;
+
+            const finish = (payload) => {
+                if (finished) return;
+                finished = true;
+                if (timer) clearTimeout(timer);
+                chrome.tabs.onUpdated.removeListener(listener);
+                try { chrome.tabs.remove(tabId); } catch (e) {}
+                resolve(payload);
+            };
+
+            const readPage = () => {
+                chrome.scripting.executeScript({
+                    target: { tabId: tabId },
+                    func: () => ({
+                        href: location.href || '',
+                        title: document.title || '',
+                        pageData: window.pageData || null,
+                        html: document.documentElement ? document.documentElement.outerHTML : ''
+                    })
+                }, (results) => {
+                    if (chrome.runtime.lastError) { finish(null); return; }
+                    const data = results && results[0] && results[0].result ? results[0].result : null;
+                    finish(data);
+                });
+            };
+
+            const listener = (tid, changeInfo) => {
+                if (tid === tabId && changeInfo.status === 'complete') {
+                    setTimeout(readPage, 1200);
+                }
+            };
+
+            chrome.tabs.onUpdated.addListener(listener);
+            timer = setTimeout(readPage, 15000);
+        });
+    });
+}
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     (async () => {
         if (msg && msg.type === 'resolveTarget') {
@@ -301,26 +744,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                         }
                     } 
                 });
-                return;
-                sendResponse({ 
-                    source: 'aizhan', 
-                    url: aizhanUrl, 
-                    company, 
-                    icpNumber, 
-                    icpStatus, 
-                    debug: {
-                        aizhanUrl, 
-                        aizhanStatus: rAizhan.status,
-                        purpose: '获取备案信息',
-                        extracted: {
-                            company: company,
-                            icpNumber: icpNumber,
-                            icpStatus: icpStatus
-                        }
-                    } 
-                });
-                return;
-                
             } catch(e) { 
                 sendResponse({ 
                     source: 'aizhan', 
@@ -337,12 +760,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
         if (msg && msg.type === 'queryICP') {
             const q = msg.query || '';
-            
-            // 从爱企查获取公司信息
-            
+
             try {
-                // 从爱企查获取公司信息
-                // 先访问首页获取cookies
                 const homeUrl = 'https://aiqicha.baidu.com/';
                 await safeFetch(homeUrl, { 
                     credentials: 'include',
@@ -353,9 +772,44 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                         'Accept-Encoding': 'gzip, deflate, br'
                     }
                 });
-                
-                // 然后进行搜索
+
                 const searchUrl = 'https://aiqicha.baidu.com/s?q=' + encodeURIComponent(q);
+                const snapshot = await captureAiqichaSnapshot(searchUrl);
+                if (snapshot) {
+                    const aiqichaSnapshotHit = extractAiqichaSearchResult(snapshot.pageData || snapshot.html || snapshot.source || '', q);
+                    if (aiqichaSnapshotHit && hasUsefulAiqichaData(aiqichaSnapshotHit.fields)) {
+                        sendResponse({
+                            source: 'aiqicha',
+                            url: searchUrl,
+                            company: aiqichaSnapshotHit.fields.company || q,
+                            legal: aiqichaSnapshotHit.fields.legal,
+                            capital: aiqichaSnapshotHit.fields.capital,
+                            phone: aiqichaSnapshotHit.fields.phone,
+                            email: aiqichaSnapshotHit.fields.email,
+                            debug: {
+                                searchUrl: { url: searchUrl, purpose: 'search company info' },
+                                searchStatus: 200,
+                                selection: {
+                                    method: aiqichaSnapshotHit.selected.source,
+                                    candidateCount: aiqichaSnapshotHit.resultCount,
+                                    chosenIndex: aiqichaSnapshotHit.selected.index,
+                                    chosenPid: aiqichaSnapshotHit.selected.pid,
+                                    chosenName: aiqichaSnapshotHit.selected.name,
+                                    chosenScore: aiqichaSnapshotHit.selected.score
+                                },
+                                extracted: aiqichaSnapshotHit.fields,
+                                selectedSample: aiqichaSnapshotHit.sample,
+                                snapshot: {
+                                    href: snapshot.href || '',
+                                    title: snapshot.title || ''
+                                },
+                                htmlSample: String(snapshot.html || '').substring(0, 1000)
+                            }
+                        });
+                        return;
+                    }
+                }
+
                 const rSearch = await safeFetch(searchUrl, { 
                     credentials: 'include',
                     headers: {
@@ -366,7 +820,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                         'Referer': 'https://aiqicha.baidu.com/'
                     }
                 });
-                
+
                 if (!rSearch.ok) { 
                     sendResponse({ 
                         source: 'aiqicha', 
@@ -379,86 +833,68 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     }); 
                     return; 
                 }
-                
+
                 const html = rSearch.text || '';
-                const patterns = [
-                    /href=\"(\/company_detail_[^\"?#]+)[^\"]*\"/,
-                    /"href"\s*:\s*"(\/company_detail_[^"]+)"/,
-                    /(\/company_detail_[a-zA-Z0-9_\-]+)\b/,
-                    /href="([^"]*company_detail_[^"]*)"/,
-                    /"url"\s*:\s*"([^"]*company_detail_[^"]*)"/,
-                    /company_detail_[a-zA-Z0-9_\-]+/,
-                    /href="([^"]*\/company\/[^"]*)"/,
-                    /"url"\s*:\s*"([^"]*\/company\/[^"]*)"/,
-                    /\/company\/[a-zA-Z0-9_\-]+/
-                ];
-                
-                let detailPath = '';
-                for (const re of patterns) { 
-                    const m = html.match(re); 
-                    if (m && m[1]) { 
-                        detailPath = m[1]; 
-                        break; 
-                    } 
-                }
-                
-                if (!detailPath) { 
-                    // 尝试从搜索页面直接提取信息
-                    function pickFromSearch(reArr) {
-                        for (const re of reArr) { 
-                            const m = html.match(re); 
-                            if (m && m[1]) return m[1].trim(); 
+                const searchHit = extractAiqichaSearchResult(html, q);
+                const searchExtracted = extractAiqichaFields(html);
+
+                if (searchHit && hasUsefulAiqichaData(searchHit.fields)) {
+                    sendResponse({
+                        source: 'aiqicha',
+                        url: searchUrl,
+                        company: searchHit.fields.company || q,
+                        legal: searchHit.fields.legal,
+                        capital: searchHit.fields.capital,
+                        phone: searchHit.fields.phone,
+                        email: searchHit.fields.email,
+                        debug: {
+                            searchUrl: { url: searchUrl, purpose: '搜索公司信息' },
+                            searchStatus: rSearch.status,
+                            selection: {
+                                method: 'pageData-resultList',
+                                candidateCount: searchHit.resultCount,
+                                chosenIndex: searchHit.selected.index,
+                                chosenPid: searchHit.selected.pid,
+                                chosenName: searchHit.selected.name,
+                                chosenScore: searchHit.selected.score
+                            },
+                            extracted: searchHit.fields,
+                            selectedSample: searchHit.sample,
+                            htmlSample: html.substring(0, 1000)
                         }
-                        return '';
-                    }
-                    
-                    let legal = pickFromSearch([
-                        /法定代表人[^<]*>([^<]{1,40})</i,
-                        /法人代表[^<]*>([^<]{1,40})</i,
-                        /法人[^<]*>([^<]{1,40})</i
-                    ]);
-                    
-                    let capital = pickFromSearch([
-                        /注册资本[^<]*>([^<]{1,60})</i,
-                        /注册资金[^<]*>([^<]{1,60})</i
-                    ]);
-                    
-                    let phone = pickFromSearch([
-                        /电话[^<]*>([^<]{3,20})</i,
-                        /联系电话[^<]*>([^<]{3,20})</i
-                    ]);
-                    
-                    let email = pickFromSearch([
-                        /邮箱[^<]*>([^<]{3,60})</i,
-                        /电子邮箱[^<]*>([^<]{3,60})</i,
-                        /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/
-                    ]);
-                    
-                    if (legal || capital || phone || email) {
-                        sendResponse({ 
-                            source: 'aiqicha', 
-                            url: searchUrl, 
-                            company: q, 
-                            legal, 
-                            capital, 
-                            phone, 
-                            email, 
+                    });
+                    return;
+                }
+
+                const candidates = collectAiqichaCandidates(html, q);
+
+                if (!candidates.length) {
+                    if (hasUsefulAiqichaData(searchExtracted)) {
+                        sendResponse({
+                            source: 'aiqicha',
+                            url: searchUrl,
+                            company: searchExtracted.company || q,
+                            legal: searchExtracted.legal,
+                            capital: searchExtracted.capital,
+                            phone: searchExtracted.phone,
+                            email: searchExtracted.email,
                             debug: {
                                 searchUrl: { url: searchUrl, purpose: '搜索公司信息' },
                                 searchStatus: rSearch.status,
+                                selection: { method: 'search-page-fallback', candidateCount: 0 },
                                 extracted: {
-                                    company: q,
-                                    legal: legal,
-                                    capital: capital,
-                                    phone: phone,
-                                    email: email
+                                    company: searchExtracted.company || q,
+                                    legal: searchExtracted.legal,
+                                    capital: searchExtracted.capital,
+                                    phone: searchExtracted.phone,
+                                    email: searchExtracted.email
                                 },
                                 htmlSample: html.substring(0, 1000)
-                            } 
-                        }); 
+                            }
+                        });
                         return;
                     }
-                    
+
                     sendResponse({ 
                         source: 'aiqicha', 
                         url: searchUrl, 
@@ -466,111 +902,118 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                         debug: { 
                             searchUrl: { url: searchUrl, purpose: '搜索公司信息' }, 
                             searchStatus: rSearch.status,
+                            selection: { method: 'search-page', candidateCount: 0 },
                             htmlSample: html.substring(0, 1000)
                         } 
                     }); 
                     return; 
                 }
-                
-                const detailUrl = 'https://aiqicha.baidu.com' + detailPath;
-                const rDetail = await safeFetch(detailUrl, { 
-                    credentials: 'include',
-                    headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-                        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-                        'Accept-Encoding': 'gzip, deflate, br',
-                        'Referer': searchUrl
+
+                const tried = [];
+                const maxAttempts = Math.min(candidates.length, 5);
+                for (let i = 0; i < maxAttempts; i++) {
+                    const candidate = candidates[i];
+                    const detailUrl = 'https://aiqicha.baidu.com' + candidate.path;
+                    const rDetail = await safeFetch(detailUrl, { 
+                        credentials: 'include',
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+                            'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+                            'Accept-Encoding': 'gzip, deflate, br',
+                            'Referer': searchUrl
+                        }
+                    });
+
+                    const detailHtml = rDetail.text || '';
+                    const extracted = extractAiqichaFields(detailHtml);
+                    tried.push({
+                        path: candidate.path,
+                        name: candidate.name,
+                        score: candidate.score,
+                        status: rDetail.status,
+                        ok: rDetail.ok,
+                        htmlSample: detailHtml.substring(0, 1000),
+                        extracted: extracted
+                    });
+
+                    if (rDetail.ok && hasUsefulAiqichaData(extracted)) {
+                        sendResponse({ 
+                            source: 'aiqicha', 
+                            url: detailUrl, 
+                            company: extracted.company || candidate.name || q, 
+                            legal: extracted.legal, 
+                            capital: extracted.capital, 
+                            phone: extracted.phone, 
+                            email: extracted.email, 
+                            debug: {
+                                searchUrl: { url: searchUrl, purpose: '搜索公司信息' },
+                                searchStatus: rSearch.status,
+                                selection: {
+                                    method: 'candidate-detail',
+                                    candidateCount: candidates.length,
+                                    chosenIndex: i,
+                                    chosenPath: candidate.path,
+                                    chosenName: candidate.name,
+                                    chosenScore: candidate.score
+                                },
+                                candidates: candidates.slice(0, 5),
+                                tried: tried,
+                                detailUrl: { url: detailUrl, purpose: '获取公司详细信息' },
+                                detailStatus: rDetail.status,
+                                extracted: {
+                                    company: extracted.company || candidate.name || q,
+                                    legal: extracted.legal,
+                                    capital: extracted.capital,
+                                    phone: extracted.phone,
+                                    email: extracted.email
+                                },
+                                detailHtmlSample: detailHtml.substring(0, 1000)
+                            } 
+                        });
+                        return;
                     }
-                });
-                
-                if (!rDetail.ok) { 
-                    sendResponse({ 
-                        source: 'aiqicha', 
-                        url: detailUrl, 
-                        error: 'detail_fetch_failed', 
-                        debug: { 
-                            searchUrl: { url: searchUrl, purpose: '搜索公司信息' }, 
-                            searchStatus: rSearch.status, 
-                            detailUrl: { url: detailUrl, purpose: '获取公司详细信息' }, 
-                            detailStatus: rDetail.status
-                        } 
-                    }); 
-                    return; 
                 }
-                
-                const dh = rDetail.text || '';
-                
-                function pick(reArr) {
-                    for (const re of reArr) { 
-                        const m = dh.match(re); 
-                        if (m && m[1]) return m[1].trim(); 
-                    }
-                    return '';
-                }
-                
-                // 提取公司信息
-                let company = pick([
-                    /\"entName\"\s*:\s*\"([^\"]{1,80})\"/i,
-                    /\"companyName\"\s*:\s*\"([^\"]{1,80})\"/i,
-                    /<title>\s*([^<>{}]{1,80}?)\s*-\s*爱企查\s*<\/title>/i,
-                    /公司名称[^<]*>([^<]{1,80})</i,
-                    /企业名称[^<]*>([^<]{1,80})</i
-                ]);
-                
-                let legal = pick([
-                    /\"legalPersonName\"\s*:\s*\"([^\"]{1,40})\"/i,
-                    /\"legalPerson\"\s*:\s*\"([^\"]{1,40})\"/i,
-                    /法定代表人[^<]*>([^<]{1,40})</i,
-                    /法人代表[^<]*>([^<]{1,40})</i,
-                    /法人[^<]*>([^<]{1,40})</i
-                ]);
-                
-                let capital = pick([
-                    /\"regCapital\"\s*:\s*\"([^\"]{1,40})\"/i,
-                    /\"registeredCapital\"\s*:\s*\"([^\"]{1,40})\"/i,
-                    /注册资本[^<]*>([^<]{1,60})</i,
-                    /注册资金[^<]*>([^<]{1,60})</i
-                ]);
-                
-                let phone = pick([
-                    /\"telephone\"\s*:\s*\"([^\"]{3,20})\"/i,
-                    /电话[^<]*>([^<]{3,20})</i,
-                    /联系电话[^<]*>([^<]{3,20})</i
-                ]);
-                
-                let email = pick([
-                    /\"email\"\s*:\s*\"([^\"]{3,60})\"/i,
-                    /邮箱[^<]*>([^<]{3,60})</i,
-                    /电子邮箱[^<]*>([^<]{3,60})</i,
-                    /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/
-                ]);
-                
-                sendResponse({ 
-                    source: 'aiqicha', 
-                    url: detailUrl, 
-                    company, 
-                    legal, 
-                    capital, 
-                    phone, 
-                    email, 
+
+                const bestCandidate = candidates[0];
+                const fallbackDetailUrl = 'https://aiqicha.baidu.com' + bestCandidate.path;
+                const fallbackExtracted = hasUsefulAiqichaData(searchExtracted)
+                    ? searchExtracted
+                    : (tried.length ? tried[tried.length - 1].extracted : searchExtracted);
+                sendResponse({
+                    source: 'aiqicha',
+                    url: fallbackDetailUrl,
+                    company: fallbackExtracted.company || bestCandidate.name || q,
+                    legal: fallbackExtracted.legal,
+                    capital: fallbackExtracted.capital,
+                    phone: fallbackExtracted.phone,
+                    email: fallbackExtracted.email,
                     debug: {
                         searchUrl: { url: searchUrl, purpose: '搜索公司信息' },
                         searchStatus: rSearch.status,
-                        detailUrl: { url: detailUrl, purpose: '获取公司详细信息' },
-                        detailStatus: rDetail.status,
-                        extracted: {
-                            company: company,
-                            legal: legal,
-                            capital: capital,
-                            phone: phone,
-                            email: email
+                        selection: {
+                            method: 'candidate-detail-fallback',
+                            candidateCount: candidates.length,
+                            bestPath: bestCandidate.path,
+                            bestName: bestCandidate.name,
+                            bestScore: bestCandidate.score
                         },
-                        detailHtmlSample: dh.substring(0, 1000)
-                    } 
+                        candidates: candidates.slice(0, 5),
+                        tried: tried,
+                        detailUrl: { url: fallbackDetailUrl, purpose: '获取公司详细信息' },
+                        detailStatus: tried.length ? tried[tried.length - 1].status : 0,
+                        extracted: {
+                            company: fallbackExtracted.company || bestCandidate.name || q,
+                            legal: fallbackExtracted.legal,
+                            capital: fallbackExtracted.capital,
+                            phone: fallbackExtracted.phone,
+                            email: fallbackExtracted.email
+                        },
+                        detailHtmlSample: tried.length ? tried[tried.length - 1].htmlSample : html.substring(0, 1000)
+                    }
                 });
                 return;
-                
+
             } catch(e) { 
                 sendResponse({ 
                     source: 'aiqicha', 
